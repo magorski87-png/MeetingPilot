@@ -1,0 +1,55 @@
+name: Build and deploy MeetingPilot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Verify app source uploaded
+        run: |
+          test -f src/main.tsx || { echo "::error::Missing src folder. Upload the src directory from MeetingPilot ZIP."; exit 1; }
+          test -f public/icons/icon-192.png || { echo "::error::Missing public/icons directory. Upload it from MeetingPilot ZIP."; exit 1; }
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run type checks
+        run: npm run typecheck
+      - name: Run unit tests
+        run: npm test
+      - name: Build website
+        run: npm run build
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
